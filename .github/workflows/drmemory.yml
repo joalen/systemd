@@ -60,7 +60,10 @@ jobs:
             local executable="$1"
             local log_dir="./logs"
             timeout 30s drmemory -logdir "./logs" -- "$executable"
+            pid $!
             local exit_status=$?
+            sleep 300
+            kill -STOP $DRMEMORY_PID
           }
 
           find "$DIRECTORY" -type f -executable | while read -r file; do
