@@ -59,11 +59,21 @@ jobs:
           run_with_drmemory() {
             local executable="$1"
             local log_dir="./logs"
-            timeout 30s drmemory -logdir "./logs" -- "$executable"
-            pid $!
-            local exit_status=$?
-            sleep 300
-            kill -STOP $DRMEMORY_PID
+            timeout 30s drmemory -logdir "./logs" -- "$executable" &
+            local drmemory_pid=$!
+            
+            while true; do
+              sleep 10
+              kill -0 $drmemory_pid &>/dev/null || break
+              local exit_status=$?
+              
+              if [ $exit_status -eq 0 ]; then
+                break
+              else
+                sleep 300
+              fi
+            done
+            kill -STOP $drmemory_pid
           }
 
           find "$DIRECTORY" -type f -executable | while read -r file; do
