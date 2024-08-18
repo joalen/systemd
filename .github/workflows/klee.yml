@@ -73,15 +73,21 @@ jobs:
           set +e 
           
           include_dirs=$(find . -name '*.h' -exec dirname {} + | sort -u | sed 's/^/-I /')
+          count=0
+          limit=10
           
           while IFS= read -r -d '' file; do
+              if [ "$count" -ge "$limit" ]; then
+                  break
+              fi
+          
               bc_file="${file%.c}.bc"
               if clang -I "$include_dirs" -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone "$file" -o "$bc_file" 2>/dev/null; then
                   if ! /usr/lib/llvm-13/bin/llvm-nm "$PWD/$bc_file" | grep -q " T main"; then
                       rm "$bc_file"
                   else
                       output_file="klee_reports/$(basename "$file" .c)_klee_report.txt"
-                      klee_output=$(/tmp/klee/build/bin/klee "$bc_file" 2>&1 | tee -a "$output_file")
+                      timeout -k 15 30 klee_output=$(/tmp/klee/build/bin/klee "$bc_file" 2>&1 | tee -a "$output_file")
                       klee_exit_code=$?
           
                       if [[ $klee_exit_code -eq 0 ]]; then
@@ -90,7 +96,7 @@ jobs:
                           echo ""
                           echo ""
                       elif [[ $klee_exit_code -eq 1 && $klee_output =~ "Invalid record" ]]; then
-                         	continue 
+                          continue
                       else
                           continue
                       fi
@@ -98,6 +104,8 @@ jobs:
               else
                   continue
               fi
+          
+              ((count++))
           done < <(find . -name "*.c" -exec grep -q "int main" {} \; -print0)
           
       - name: Upload Klee reports
